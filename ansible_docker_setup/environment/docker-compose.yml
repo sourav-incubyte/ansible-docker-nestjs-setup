@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: appdb
+    ports:
+      - "5433:5432"
+
+  nestapp:
+    build:
+      context: ./nestapp
+    ports:
+      - "8080:3000"
+    environment:
+      DB_HOST: database
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: secret
+      DB_NAME: appdb
+    depends_on:
+      - postgres
