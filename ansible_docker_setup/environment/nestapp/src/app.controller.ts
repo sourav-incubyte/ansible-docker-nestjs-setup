@@ -2,18 +2,17 @@ import { Controller, Get } from '@nestjs/common';
 import { Pool } from 'pg';
 
 const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: parseInt(process.env.DB_PORT),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
+  host: 'localhost',
+  port: 5432,
+  user: 'admin',
+  password: 'secret',
+  database: 'appdb',
 });
 
 @Controller()
 export class AppController {
-
   @Get('/healthz')
-  async checkDb() {
+  async checkDatabase() {
     try {
       const client = await pool.connect();
       await client.query('SELECT 1');

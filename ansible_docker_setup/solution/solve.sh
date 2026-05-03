@@ -1,26 +1,68 @@
 #!/bin/bash
 
-# Fix 1: Fix the Ansible playbook - change 'dockerd' to 'docker'
-sed -i 's/name: dockerd/name: docker/' /app/playbook.yml
+set -e
 
-# Fix 2: Fix docker-compose.yml - change port 5433 to 5432
-sed -i 's/5433:5432/5432:5432/' /app/docker-compose.yml
+echo "Creating docker-compose.yml..."
+cat > /app/docker-compose.yml <<'EOF'
+version: '3.8'
 
-# Fix 3: Fix docker-compose.yml - change DB_HOST from 'database' to 'postgres'
-sed -i 's/DB_HOST: database/DB_HOST: postgres/' /app/docker-compose.yml
+services:
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: appdb
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d appdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
-# Fix 4: Fix the NestJS controller - change '/healthz' to '/checkdb'
-sed -i "s|@Get('/healthz')|@Get('/checkdb')|" /app/nestapp/src/app.controller.ts
+  nestapp:
+    build:
+      context: ./nestapp
+    ports:
+      - "8080:3000"
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: admin
+      DB_PASSWORD: secret
+      DB_NAME: appdb
+    depends_on:
+      - postgres
+EOF
 
-# Start docker service
-service docker start || true
-sleep 3
+echo "Fixing bugs in the NestJS application..."
 
-# Build and start services
-cd /app
-docker-compose up -d --build
+# Fix 1: Change endpoint from /healthz to /checkdb in app.controller.ts
+sed -i "s|@Get('/healthz')|@Get('/checkdb')|g" /app/nestapp/src/app.controller.ts
 
-# Wait for services to be ready
+# Fix 2: Change database host from localhost to postgres in app.controller.ts
+sed -i "s|host: 'localhost'|host: 'postgres'|g" /app/nestapp/src/app.controller.ts
+
+echo "Rebuilding NestJS application..."
+cd /app/nestapp && npm run build
+
+echo "Installing Docker..."
+apt-get update
+apt-get install -y apt-transport-https ca-certificates curl gnupg lsb-release
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | apt-key add -
+echo "deb [arch=$(dpkg --print-architecture)] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" > /etc/apt/sources.list.d/docker.list
+apt-get update
+apt-get install -y docker-ce docker-ce-cli containerd.io
+
+echo "Installing Docker Compose..."
+curl -L "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+chmod +x /usr/local/bin/docker-compose
+
+echo "Starting docker-compose services..."
+cd /app && docker-compose up -d --build
+
+echo "Waiting for services to start..."
 sleep 30
 
-echo "Solution applied successfully"
+echo "Done!"

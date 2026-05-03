@@ -6,6 +6,13 @@ version = "0.1.0"
 
 [environment]
 name = "ansible_docker_setup"
+mounts_json = ["/var/run/docker.sock:/var/run/docker.sock"]
 
 [environment.runtime]
 python = "3.12"
+
+[verifier]
+mounts_json = ["/var/run/docker.sock:/var/run/docker.sock"]
+
+[verifier.runtime]
+system_packages = ["docker.io"]

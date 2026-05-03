@@ -1,54 +1,83 @@
 import pytest
-import subprocess
 import requests
+import subprocess
 import time
+import socket
 
 
-def test_playbook_service_name_fixed():
-    """Test that playbook uses 'docker' not 'dockerd'"""
-    with open('/app/playbook.yml', 'r') as f:
-        content = f.read()
-    assert 'name: dockerd' not in content, "playbook.yml still has 'dockerd' - should be 'docker'"
-    assert 'name: docker' in content, "playbook.yml should have service name 'docker'"
+def get_docker_host_ip():
+    """Get the Docker host IP address."""
+    # Try to get the default gateway (Docker host)
+    try:
+        result = subprocess.run(
+            ['ip', 'route', 'show', 'default'],
+            capture_output=True,
+            text=True
+        )
+        if result.returncode == 0:
+            # Parse: default via 172.17.0.1 dev eth0
+            parts = result.stdout.split()
+            if len(parts) >= 3 and parts[0] == 'default' and parts[1] == 'via':
+                return parts[2]
+    except:
+        pass
+    
+    # Fallback to common Docker gateway
+    return '172.17.0.1'
 
 
-def test_docker_compose_postgres_port_fixed():
-    """Test that postgres is mapped to port 5432 not 5433"""
-    with open('/app/docker-compose.yml', 'r') as f:
-        content = f.read()
-    assert '5433:5432' not in content, "docker-compose.yml still has wrong port 5433"
-    assert '5432:5432' in content, "docker-compose.yml should map postgres to port 5432"
+def wait_for_service(url, max_wait=60):
+    """Wait for a service to become available."""
+    start_time = time.time()
+    while time.time() - start_time < max_wait:
+        try:
+            response = requests.get(url, timeout=2)
+            if response.status_code == 200:
+                return response
+        except requests.exceptions.RequestException:
+            pass
+        time.sleep(1)
+    raise TimeoutError(f"Service at {url} did not become available within {max_wait} seconds")
 
 
-def test_docker_compose_db_host_fixed():
-    """Test that DB_HOST is 'postgres' not 'database'"""
-    with open('/app/docker-compose.yml', 'r') as f:
-        content = f.read()
-    assert 'DB_HOST: database' not in content, "docker-compose.yml still has wrong DB_HOST"
-    assert 'DB_HOST: postgres' in content, "docker-compose.yml should have DB_HOST: postgres"
+def test_postgres_container_running():
+    """Test that PostgreSQL container is running on port 5432."""
+    result = subprocess.run(
+        ['docker', 'ps', '--format', '{{.Names}} {{.Ports}}'],
+        capture_output=True,
+        text=True
+    )
+    assert '5432' in result.stdout, "PostgreSQL should be accessible on port 5432"
 
 
-def test_nestjs_checkdb_endpoint_fixed():
-    """Test that NestJS controller has /checkdb not /healthz"""
-    with open('/app/nestapp/src/app.controller.ts', 'r') as f:
-        content = f.read()
-    assert '/healthz' not in content, "app.controller.ts still has '/healthz' endpoint"
-    assert '/checkdb' in content, "app.controller.ts should have '/checkdb' endpoint"
+def test_nestjs_container_running():
+    """Test that NestJS container is running on port 8080."""
+    result = subprocess.run(
+        ['docker', 'ps', '--format', '{{.Names}} {{.Ports}}'],
+        capture_output=True,
+        text=True
+    )
+    assert '8080' in result.stdout, "NestJS should be accessible on port 8080"
 
 
-def test_docker_compose_has_correct_structure():
-    """Test docker-compose has both required services"""
-    with open('/app/docker-compose.yml', 'r') as f:
-        content = f.read()
-    assert 'postgres' in content, "docker-compose.yml missing postgres service"
-    assert 'nestapp' in content, "docker-compose.yml missing nestapp service"
-    assert '8080' in content, "docker-compose.yml missing port 8080"
+def test_checkdb_returns_200():
+    """Test that /checkdb endpoint returns HTTP 200."""
+    host = get_docker_host_ip()
+    response = wait_for_service(f'http://{host}:8080/checkdb')
+    assert response.status_code == 200, "Endpoint /checkdb should return 200"
 
 
-def test_nestjs_uses_env_variables():
-    """Test that NestJS controller uses environment variables for DB connection"""
-    with open('/app/nestapp/src/app.controller.ts', 'r') as f:
-        content = f.read()
-    assert 'DB_HOST' in content, "app.controller.ts missing DB_HOST env variable"
-    assert 'DB_PORT' in content, "app.controller.ts missing DB_PORT env variable"
-    assert 'DB_USER' in content, "app.controller.ts missing DB_USER env variable"
+def test_checkdb_returns_ok_json():
+    """Test that /checkdb endpoint returns correct JSON with status ok."""
+    host = get_docker_host_ip()
+    response = wait_for_service(f'http://{host}:8080/checkdb')
+    json_data = response.json()
+    assert json_data.get('status') == 'ok', "Response should contain status: ok"
+
+
+def test_checkdb_database_connected():
+    """Test that /checkdb endpoint successfully connects to the database."""
+    host = get_docker_host_ip()
+    response = wait_for_service(f'http://{host}:8080/checkdb')
+    json_data = response.json()
+    assert json_data.get('status') != 'error', "Database connection should not return error status"
