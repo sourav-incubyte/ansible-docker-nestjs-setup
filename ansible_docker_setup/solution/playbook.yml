@@ -1,0 +1,92 @@
+---
+- name: Deploy NestJS and PostgreSQL stack
+  hosts: localhost
+  become: yes
+  connection: local
+  
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+        cache_valid_time: 3600
+
+    - name: Install required system packages
+      apt:
+        name:
+          - apt-transport-https
+          - ca-certificates
+          - curl
+          - gnupg
+          - lsb-release
+          - software-properties-common
+        state: present
+
+    - name: Add Docker GPG apt Key
+      apt_key:
+        url: https://download.docker.com/linux/ubuntu/gpg
+        state: present
+
+    - name: Add Docker Repository
+      apt_repository:
+        repo: "deb [arch={{ 'arm64' if ansible_architecture == 'aarch64' else 'amd64' }}] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+        state: present
+        update_cache: yes
+
+    - name: Install docker-ce
+      apt:
+        name:
+          - docker-ce
+          - docker-ce-cli
+          - containerd.io
+        state: present
+
+    - name: Install Docker Compose
+      get_url:
+        url: "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-{{ ansible_system }}-{{ ansible_machine }}"
+        dest: /usr/local/bin/docker-compose
+        mode: '0755'
+
+    - name: Create docker-compose.yml
+      copy:
+        dest: /app/docker-compose.yml
+        content: |
+          version: '3.8'
+
+          services:
+            postgres:
+              image: postgres:15
+              environment:
+                POSTGRES_USER: admin
+                POSTGRES_PASSWORD: secret
+                POSTGRES_DB: appdb
+              ports:
+                - "5432:5432"
+              healthcheck:
+                test: ["CMD-SHELL", "pg_isready -U admin -d appdb"]
+                interval: 5s
+                timeout: 5s
+                retries: 5
+
+            nestapp:
+              build:
+                context: ./nestapp
+              ports:
+                - "8080:3000"
+              environment:
+                DB_HOST: postgres
+                DB_PORT: 5432
+                DB_USER: admin
+                DB_PASSWORD: secret
+                DB_NAME: appdb
+              depends_on:
+                - postgres
+
+    - name: Start Docker Compose services
+      shell: |
+        cd /app && docker-compose up -d --build
+      args:
+        executable: /bin/bash
+
+    - name: Wait for services to be ready
+      pause:
+        seconds: 30
