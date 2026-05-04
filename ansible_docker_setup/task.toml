@@ -4,6 +4,9 @@ organization = "bespokelabs"
 description = "Build and deploy a NestJS API with PostgreSQL database using Docker Compose, implementing a /checkdb health endpoint"
 version = "0.2.0"
 
+[agent]
+timeout_sec = 900.0
+
 [environment]
 name = "ansible_docker_setup"
 mounts_json = ["/var/run/docker.sock:/var/run/docker.sock"]
