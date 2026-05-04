@@ -2,6 +2,19 @@
 
 set -e
 
+echo "Installing Node.js..."
+curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+apt-get install -y nodejs
+
+echo "Copying NestJS application..."
+cp -r /solution/nestapp /app/nestapp
+
+echo "Installing NestJS dependencies..."
+cd /app/nestapp && npm install
+
+echo "Building NestJS application..."
+cd /app/nestapp && npm run build
+
 echo "Creating docker-compose.yml..."
 cat > /app/docker-compose.yml <<'EOF'
 version: '3.8'
@@ -35,17 +48,6 @@ services:
     depends_on:
       - postgres
 EOF
-
-echo "Fixing bugs in the NestJS application..."
-
-# Fix 1: Change endpoint from /healthz to /checkdb in app.controller.ts
-sed -i "s|@Get('/healthz')|@Get('/checkdb')|g" /app/nestapp/src/app.controller.ts
-
-# Fix 2: Change database host from localhost to postgres in app.controller.ts
-sed -i "s|host: 'localhost'|host: 'postgres'|g" /app/nestapp/src/app.controller.ts
-
-echo "Rebuilding NestJS application..."
-cd /app/nestapp && npm run build
 
 echo "Installing Docker..."
 apt-get update

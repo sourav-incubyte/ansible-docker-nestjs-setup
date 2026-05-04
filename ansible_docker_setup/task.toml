@@ -1,8 +1,8 @@
 [task]
 name = "bespokelabs/ansible_docker_setup"
 organization = "bespokelabs"
-description = "Fix a broken Ansible playbook and NestJS app to deploy a working docker-compose setup with PostgreSQL and a /checkdb endpoint"
-version = "0.1.0"
+description = "Build and deploy a NestJS API with PostgreSQL database using Docker Compose, implementing a /checkdb health endpoint"
+version = "0.2.0"
 
 [environment]
 name = "ansible_docker_setup"
