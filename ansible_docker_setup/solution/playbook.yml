@@ -42,7 +42,7 @@
 
     - name: Install Docker Compose
       get_url:
-        url: "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-{{ ansible_system }}-{{ ansible_machine }}"
+        url: "https://github.com/docker/compose/releases/download/v2.20.0/docker-compose-{{ ansible_system | lower }}-{{ ansible_machine }}"
         dest: /usr/local/bin/docker-compose
         mode: '0755'
 
