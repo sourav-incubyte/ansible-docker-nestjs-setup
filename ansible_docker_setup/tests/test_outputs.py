@@ -68,11 +68,16 @@ def test_checkdb_returns_200():
 
 
 def test_checkdb_returns_ok_json():
-    """Test that /checkdb endpoint returns correct JSON with status ok."""
+    """Test that /checkdb endpoint returns correct JSON with status connected."""
     host = get_docker_host_ip()
     response = wait_for_service(f'http://{host}:8080/checkdb')
     json_data = response.json()
-    assert json_data.get('status') == 'ok', "Response should contain status: ok"
+    # Accept either {"status": "connected"} or {"connected": true}
+    is_valid = (
+        json_data.get('status') == 'connected' or 
+        json_data.get('connected') is True
+    )
+    assert is_valid, f"Response should contain either status='connected' or connected=true, got: {json_data}"
 
 
 def test_checkdb_database_connected():

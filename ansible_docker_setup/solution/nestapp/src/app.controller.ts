@@ -17,7 +17,7 @@ export class AppController {
       const client = await pool.connect();
       await client.query('SELECT 1');
       client.release();
-      return { status: 'ok' };
+      return { status: 'connected' };
     } catch (err) {
       return { status: 'error', message: err.message };
     }
